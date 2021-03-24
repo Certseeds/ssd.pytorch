@@ -1,7 +1,11 @@
+#!/usr/bin/env python3
+# coding=utf-8
 # config.py
 import os.path
 
 # gets home dir cross platform
+from typing import Dict
+
 HOME = os.path.expanduser("~")
 
 # for making bounding boxes pretty
@@ -11,7 +15,7 @@ COLORS = ((255, 0, 0, 128), (0, 255, 0, 128), (0, 0, 255, 128),
 MEANS = (104, 117, 123)
 
 # SSD300 CONFIGS
-voc = {
+voc: Dict = {
     'num_classes': 21,
     'lr_steps': (80000, 100000, 120000),
     'max_iter': 120000,
@@ -26,7 +30,7 @@ voc = {
     'name': 'VOC',
 }
 
-coco = {
+coco: Dict = {
     'num_classes': 201,
     'lr_steps': (280000, 360000, 400000),
     'max_iter': 400000,
