@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# coding=utf-8
+from typing import List, Tuple, Dict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,7 +29,8 @@ class SSD(nn.Module):
         head: "multibox head" consists of loc and conf conv layers
     """
 
-    def __init__(self, phase, size, base, extras, head, num_classes):
+    def __init__(self, phase: str, size: int, base: List[nn.Module], extras: List[nn.Module],
+                 head: Tuple[List[nn.Module], List[nn.Module]], num_classes: int):
         super(SSD, self).__init__()
         self.phase = phase
         self.num_classes = num_classes
@@ -97,10 +102,10 @@ class SSD(nn.Module):
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         if self.phase == "test":
             output = self.detect(
-                loc.view(loc.size(0), -1, 4),                   # loc preds
+                loc.view(loc.size(0), -1, 4),  # loc preds
                 self.softmax(conf.view(conf.size(0), -1,
-                             self.num_classes)),                # conf preds
-                self.priors.type(type(x.data))                  # default boxes
+                                       self.num_classes)),  # conf preds
+                self.priors.type(type(x.data))  # default boxes
             )
         else:
             output = (
@@ -112,10 +117,10 @@ class SSD(nn.Module):
 
     def load_weights(self, base_file):
         other, ext = os.path.splitext(base_file)
-        if ext == '.pkl' or '.pth':
+        if ext in ('.pkl', '.pth'):
             print('Loading weights into state dict...')
             self.load_state_dict(torch.load(base_file,
-                                 map_location=lambda storage, loc: storage))
+                                            map_location=lambda storage, loc: storage))
             print('Finished!')
         else:
             print('Sorry only .pth and .pkl files supported.')
@@ -123,8 +128,8 @@ class SSD(nn.Module):
 
 # This function is derived from torchvision VGG make_layers()
 # https://github.com/pytorch/vision/blob/master/torchvision/models/vgg.py
-def vgg(cfg, i, batch_norm=False):
-    layers = []
+def vgg(cfg: List[int or str], i: int, batch_norm: bool = False) -> List[nn.Module]:
+    layers: List[nn.Module] = []
     in_channels = i
     for v in cfg:
         if v == 'M':
@@ -141,69 +146,75 @@ def vgg(cfg, i, batch_norm=False):
     pool5 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
     conv6 = nn.Conv2d(512, 1024, kernel_size=3, padding=6, dilation=6)
     conv7 = nn.Conv2d(1024, 1024, kernel_size=1)
-    layers += [pool5, conv6,
-               nn.ReLU(inplace=True), conv7, nn.ReLU(inplace=True)]
+    layers += [pool5, conv6, nn.ReLU(inplace=True), conv7, nn.ReLU(inplace=True)]
     return layers
 
 
-def add_extras(cfg, i, batch_norm=False):
+def add_extras(cfg: List[int or str], i: int, batch_norm: bool = False) -> List[nn.Module]:
     # Extra layers added to VGG for feature scaling
-    layers = []
-    in_channels = i
-    flag = False
+    layers: List[nn.Module] = []
+    in_channels: int = i
+    flag: bool = False
     for k, v in enumerate(cfg):
         if in_channels != 'S':
             if v == 'S':
-                layers += [nn.Conv2d(in_channels, cfg[k + 1],
-                           kernel_size=(1, 3)[flag], stride=2, padding=1)]
+                layers.append(nn.Conv2d(in_channels, cfg[k + 1],
+                                        kernel_size=(1, 3)[flag], stride=2, padding=1))
             else:
-                layers += [nn.Conv2d(in_channels, v, kernel_size=(1, 3)[flag])]
+                layers.append(nn.Conv2d(in_channels, v, kernel_size=(1, 3)[flag]))
             flag = not flag
         in_channels = v
     return layers
 
 
-def multibox(vgg, extra_layers, cfg, num_classes):
-    loc_layers = []
-    conf_layers = []
-    vgg_source = [21, -2]
+def multibox(vgg: List[nn.Module], extra_layers: List[nn.Module], cfg: List[int or str], num_classes: int) -> Tuple[
+    List[nn.Module], List[nn.Module], Tuple[List[nn.Module], List[nn.Module]]]:
+    loc_layers: List[nn.Module] = []
+    conf_layers: List[nn.Module] = []
+    vgg_source: Tuple[int] = (21, -2)
     for k, v in enumerate(vgg_source):
-        loc_layers += [nn.Conv2d(vgg[v].out_channels,
-                                 cfg[k] * 4, kernel_size=3, padding=1)]
-        conf_layers += [nn.Conv2d(vgg[v].out_channels,
-                        cfg[k] * num_classes, kernel_size=3, padding=1)]
+        loc_layers.append(nn.Conv2d(vgg[v].out_channels,
+                                    cfg[k] * 4, kernel_size=3, padding=1))
+        conf_layers.append(nn.Conv2d(vgg[v].out_channels,
+                                     cfg[k] * num_classes, kernel_size=3, padding=1))
     for k, v in enumerate(extra_layers[1::2], 2):
-        loc_layers += [nn.Conv2d(v.out_channels, cfg[k]
-                                 * 4, kernel_size=3, padding=1)]
-        conf_layers += [nn.Conv2d(v.out_channels, cfg[k]
-                                  * num_classes, kernel_size=3, padding=1)]
+        loc_layers.append(nn.Conv2d(v.out_channels, cfg[k]
+                                    * 4, kernel_size=3, padding=1))
+        conf_layers.append(nn.Conv2d(v.out_channels, cfg[k]
+                                     * num_classes, kernel_size=3, padding=1))
     return vgg, extra_layers, (loc_layers, conf_layers)
 
 
-base = {
-    '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
-            512, 512, 512],
-    '512': [],
-}
-extras = {
-    '300': [256, 'S', 512, 128, 'S', 256, 128, 256, 128, 256],
-    '512': [],
-}
-mbox = {
-    '300': [4, 6, 6, 6, 4, 4],  # number of boxes per feature map location
-    '512': [],
-}
-
-
-def build_ssd(phase, size=300, num_classes=21):
-    if phase != "test" and phase != "train":
-        print("ERROR: Phase: " + phase + " not recognized")
-        return
+def build_ssd(phase: str, size: int = 300, num_classes: int = 21) -> SSD:
+    base: Dict = {
+        '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
+                512, 512, 512],
+        '512': [],
+    }
+    extras: Dict = {
+        '300': [256, 'S', 512, 128, 'S', 256, 128, 256, 128, 256],
+        '512': [],
+    }
+    mbox: Dict = {
+        '300': [4, 6, 6, 6, 4, 4],  # number of boxes per feature map location
+        '512': [],
+    }
+    if phase not in ("train", "test"):
+        print(f"ERROR: Phase: {phase} not recognized")
+        exit(-1)
     if size != 300:
-        print("ERROR: You specified size " + repr(size) + ". However, " +
+        print(f"ERROR: You specified size {repr(size)}. However, " +
               "currently only SSD300 (size=300) is supported!")
-        return
+        exit(-1)
     base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
                                      add_extras(extras[str(size)], 1024),
                                      mbox[str(size)], num_classes)
     return SSD(phase, size, base_, extras_, head_, num_classes)
+
+
+def main():
+    build_ssd("train")
+
+
+if __name__ == '__main__':
+    main()

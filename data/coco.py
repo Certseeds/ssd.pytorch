@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# coding=utf-8
+from typing import Tuple, List, Dict
+
 from .config import HOME
 import os
 import os.path as osp
@@ -9,33 +13,33 @@ import cv2
 import numpy as np
 
 COCO_ROOT = osp.join(HOME, 'data/coco/')
-IMAGES = 'images'
-ANNOTATIONS = 'annotations'
-COCO_API = 'PythonAPI'
+IMAGES: str = 'images'
+ANNOTATIONS: str = 'annotations'
+COCO_API: str = 'PythonAPI'
 INSTANCES_SET = 'instances_{}.json'
-COCO_CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
-                'train', 'truck', 'boat', 'traffic light', 'fire', 'hydrant',
-                'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
-                'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
-                'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
-                'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-                'kite', 'baseball bat', 'baseball glove', 'skateboard',
-                'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-                'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-                'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-                'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
-                'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-                'keyboard', 'cell phone', 'microwave oven', 'toaster', 'sink',
-                'refrigerator', 'book', 'clock', 'vase', 'scissors',
-                'teddy bear', 'hair drier', 'toothbrush')
+COCO_CLASSES: Tuple[str] = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+                            'train', 'truck', 'boat', 'traffic light', 'fire', 'hydrant',
+                            'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
+                            'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+                            'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+                            'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+                            'kite', 'baseball bat', 'baseball glove', 'skateboard',
+                            'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+                            'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+                            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+                            'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+                            'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+                            'keyboard', 'cell phone', 'microwave oven', 'toaster', 'sink',
+                            'refrigerator', 'book', 'clock', 'vase', 'scissors',
+                            'teddy bear', 'hair drier', 'toothbrush')
 
 
-def get_label_map(label_file):
+def get_label_map(label_file) -> Dict[int, int]:
     label_map = {}
-    labels = open(label_file, 'r')
-    for line in labels:
-        ids = line.split(',')
-        label_map[int(ids[0])] = int(ids[1])
+    with open(label_file, 'r') as labels:
+        for line in labels:
+            ids = line.split(',')
+            label_map[int(ids[0])] = int(ids[1])
     return label_map
 
 
@@ -43,6 +47,7 @@ class COCOAnnotationTransform(object):
     """Transforms a COCO annotation into a Tensor of bbox coords and label index
     Initilized with a dictionary lookup of classnames to indexes
     """
+
     def __init__(self):
         self.label_map = get_label_map(osp.join(COCO_ROOT, 'coco_labels.txt'))
 
@@ -63,7 +68,7 @@ class COCOAnnotationTransform(object):
                 bbox[2] += bbox[0]
                 bbox[3] += bbox[1]
                 label_idx = self.label_map[obj['category_id']] - 1
-                final_box = list(np.array(bbox)/scale)
+                final_box = list(np.array(bbox) / scale)
                 final_box.append(label_idx)
                 res += [final_box]  # [xmin, ymin, xmax, ymax, label_idx]
             else:

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# coding=utf-8
 """VOC Dataset Classes
 
 Original author: Francisco Massa
