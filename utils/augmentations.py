@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# coding=utf-8
 import torch
 from torchvision import transforms
 import cv2
@@ -235,7 +237,9 @@ class RandomSampleCrop(object):
         height, width, _ = image.shape
         while True:
             # randomly choose a mode
-            mode = random.choice(self.sample_options)
+            # mode = random.choice(self.sample_options)
+            random_idx = random.randint(0, len(self.sample_options) - 1)
+            mode = self.sample_options[random_idx]
             if mode is None:
                 return image, boxes, labels
 

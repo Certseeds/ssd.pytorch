@@ -1,39 +1,24 @@
 #!/usr/bin/env python3
 # coding=utf-8
-"""VOC Dataset Classes
-
-Original author: Francisco Massa
-https://github.com/fmassa/vision/blob/voc_dataset/torchvision/datasets/voc.py
-
+"""Barcode Dataset Classes
 Updated by: Ellis Brown, Max deGroot
-"""
-from typing import Tuple
 
-from .config import HOME
-import os.path as osp
-import sys
+"""
+from typing import Tuple, List
+
+from utils import SSDAugmentation
 import torch
 import torch.utils.data as data
 import cv2
 import numpy as np
+from pathlib import Path
 
-if sys.version_info[0] == 2:
-    import xml.etree.cElementTree as ET
-else:
-    import xml.etree.ElementTree as ET
+BARCODE_CLASS = ('barcode')
 
-VOC_CLASSES = (  # always index 0
-    'aeroplane', 'bicycle', 'bird', 'boat',
-    'bottle', 'bus', 'car', 'cat', 'chair',
-    'cow', 'diningtable', 'dog', 'horse',
-    'motorbike', 'person', 'pottedplant',
-    'sheep', 'sofa', 'train', 'tvmonitor')
 
 # note: if you used our download scripts, this should be right
-VOC_ROOT = osp.join(HOME, "data/VOCdevkit/")
 
-
-class VOCAnnotationTransform(object):
+class BARCODEAnnotationTransform(object):
     """Transforms a VOC annotation into a Tensor of bbox coords and label index
     Initilized with a dictionary lookup of classnames to indexes
 
@@ -46,12 +31,10 @@ class VOCAnnotationTransform(object):
         width (int): width
     """
 
-    def __init__(self, class_to_ind=None, keep_difficult=False):
-        self.class_to_ind = class_to_ind or dict(
-            zip(VOC_CLASSES, range(len(VOC_CLASSES))))
-        self.keep_difficult = keep_difficult
+    def __init__(self):
+        super(BARCODEAnnotationTransform).__init__()
 
-    def __call__(self, target, width, height):
+    def __call__(self, filepath: str, shape: Tuple[int, int]):
         """
         Arguments:
             target (annotation) : the target annotation to be made usable
@@ -59,31 +42,17 @@ class VOCAnnotationTransform(object):
         Returns:
             a list containing lists of bounding boxes  [bbox coords, class name]
         """
-        res = []
-        for obj in target.iter('object'):
-            difficult = int(obj.find('difficult').text) == 1
-            if not self.keep_difficult and difficult:
-                continue
-            name = obj.find('name').text.lower().strip()
-            bbox = obj.find('bndbox')
-
-            pts = ['xmin', 'ymin', 'xmax', 'ymax']
-            bndbox = []
-            for i, pt in enumerate(pts):
-                cur_pt = int(bbox.find(pt).text) - 1
-                # scale height or width
-                cur_pt = cur_pt / width if i % 2 == 0 else cur_pt / height
-                bndbox.append(cur_pt)
-            label_idx = self.class_to_ind[name]
-            bndbox.append(label_idx)
-            res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
-            # img_id = target.find('filename').text[:-4]
-
+        res: List[Tuple[float, float, float, float, int]] = []
+        with open(filepath, 'r') as file:
+            for line in file.readlines():
+                _, x, y, diffx, diffy = line.split(" ")
+                x, y, diffx, diffy = float(x), float(y), float(diffx), float(diffy)
+                res.append((x - diffx / 2, y - diffy / 2, x + diffx / 2, y + diffy / 2, 0))
         return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
 
 
-class VOCDetection(data.Dataset):
-    """VOC Detection Dataset Object
+class BARCODEDetection(data.Dataset):
+    """Barcode Detection Dataset Object
 
     input is image, target is annotation
 
@@ -99,44 +68,48 @@ class VOCDetection(data.Dataset):
             (default: 'VOC2007')
     """
 
-    def __init__(self, root,
-                 image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
-                 transform=None, target_transform=VOCAnnotationTransform(),
-                 dataset_name='VOC0712'):
-        self.root = root
-        self.image_set = image_sets
+    def __init__(self, img_list_path: str, transform=None, dataset_name='barcode'):
         self.transform = transform
-        self.target_transform = target_transform
         self.name = dataset_name
-        self._annopath = osp.join('%s', 'Annotations', '%s.xml')
-        self._imgpath = osp.join('%s', 'JPEGImages', '%s.jpg')
-        self.ids = list()
-        for (year, name) in image_sets:
-            rootpath = osp.join(self.root, 'VOC' + year)
-            for line in open(osp.join(rootpath, 'ImageSets', 'Main', name + '.txt')):
-                self.ids.append((rootpath, line.strip()))
+        self.target_transform = BARCODEAnnotationTransform()
+        self.imgLists: List[str] = list()
+        with open(img_list_path, 'r') as imglistfile:
+            self.imgLists = [str(Path(imgfile).absolute()).replace("\n", "")
+                             for imgfile in imglistfile.readlines()]
+        self.labelLists: List[str] = [path.replace("images", "labels")
+                                          .replace(".png", ".txt")
+                                          .replace(".jpg", ".txt")
+                                          .replace(".JPG", ".txt")
+                                      for path in self.imgLists]
+        self.imgMap = {}
+        self.imgLabelMap = {}
+
+    def __len__(self):
+        return len(self.imgLists)
 
     def __getitem__(self, index):
         img, gt, h, w = self.pull_item(index)
-        print(img.shape, ' -- ', gt.shape)
-        print(gt)
+        # print(img.shape, ' -- ', gt.shape)
+        # print(gt)
         return img, gt
 
-    def __len__(self) -> int:
-        return len(self.ids)
-
-    def pull_item(self, index: int):
-        img_id: Tuple[str, str] = self.ids[index]
-
-        target = ET.parse(self._annopath % img_id).getroot()
-        img = cv2.imread(self._imgpath % img_id)
+    def pull_item(self, index):
+        if index in self.imgMap:
+            img = self.imgMap[index]
+        else:
+            img_path = self.imgLists[index]
+            img = cv2.imread(img_path)
+            self.imgMap[index] = img
         height, width, channels = img.shape
-
-        if self.target_transform is not None:
-            target = self.target_transform(target, width, height)
-
+        if index in self.imgLabelMap:
+            img_labels = self.imgLabelMap[index]
+        else:
+            label_path = self.labelLists[index]
+            img_labels = self.target_transform(label_path, (width, height))
+            self.imgLabelMap[index] = img_labels
+        # print(img_labels)
         if self.transform is not None:
-            target = np.array(target)
+            target = np.array(img_labels)
             img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
             # to rgb
             img = img[:, :, (2, 1, 0)]
@@ -156,8 +129,13 @@ class VOCDetection(data.Dataset):
         Return:
             PIL img
         '''
-        img_id = self.ids[index]
-        return cv2.imread(self._imgpath % img_id, cv2.IMREAD_COLOR)
+        if index in self.imgMap:
+            img = self.imgMap[index]
+        else:
+            img_path = self.imgLists[index]
+            img = cv2.imread(img_path)
+            self.imgMap[index] = img
+        return img
 
     def pull_anno(self, index):
         '''Returns the original annotation of image at index
@@ -171,10 +149,15 @@ class VOCDetection(data.Dataset):
             list:  [img_id, [(label, bbox coords),...]]
                 eg: ('001718', [('dog', (96, 13, 438, 332))])
         '''
-        img_id = self.ids[index]
-        anno = ET.parse(self._annopath % img_id).getroot()
-        gt = self.target_transform(anno, 1, 1)
-        return img_id[1], gt
+        img = self.pull_image(index)
+        height, width, channels = img.shape
+        if index in self.imgLabelMap:
+            img_labels = self.imgLabelMap[index]
+        else:
+            label_path = self.labelLists[index]
+            img_labels = self.target_transform(label_path, (width, height))
+            self.imgLabelMap[index] = img_labels
+        return img, img_labels
 
     def pull_tensor(self, index):
         '''Returns the original image at an index in tensor form
@@ -188,3 +171,13 @@ class VOCDetection(data.Dataset):
             tensorized version of img, squeezed
         '''
         return torch.Tensor(self.pull_image(index)).unsqueeze_(0)
+
+
+def main() -> None:
+    dataset = BARCODEDetection(
+        img_list_path="barcode/CorrectDetect.txt",
+        transform=SSDAugmentation(300, (104, 117, 123)))
+
+
+if __name__ == '__main__':
+    main()
