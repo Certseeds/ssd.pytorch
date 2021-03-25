@@ -23,15 +23,12 @@ import numpy as np
 import pickle
 import cv2
 
+from utils import str2bool
+
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
     import xml.etree.ElementTree as ET
-
-
-def str2bool(v):
-    return v.lower() in ("yes", "true", "t", "1")
-
 
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
@@ -78,6 +75,7 @@ set_type = 'test'
 
 class Timer(object):
     """A simple timer."""
+
     def __init__(self):
         self.total_time = 0.
         self.calls = 0
@@ -149,7 +147,7 @@ def write_voc_results_file(all_boxes, dataset):
         filename = get_voc_results_file_template(set_type, cls)
         with open(filename, 'wt') as f:
             for im_ind, index in enumerate(dataset.ids):
-                dets = all_boxes[cls_ind+1][im_ind]
+                dets = all_boxes[cls_ind + 1][im_ind]
                 if dets == []:
                     continue
                 # the VOCdevkit expects 1-based indices
@@ -171,8 +169,8 @@ def do_python_eval(output_dir='output', use_07=True):
     for i, cls in enumerate(labelmap):
         filename = get_voc_results_file_template(set_type, cls)
         rec, prec, ap = voc_eval(
-           filename, annopath, imgsetpath.format(set_type), cls, cachedir,
-           ovthresh=0.5, use_07_metric=use_07_metric)
+            filename, annopath, imgsetpath.format(set_type), cls, cachedir,
+            ovthresh=0.5, use_07_metric=use_07_metric)
         aps += [ap]
         print('AP for {} = {:.4f}'.format(cls, ap))
         with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
@@ -250,11 +248,11 @@ cachedir: Directory for caching the annotations
 [use_07_metric]: Whether to use VOC07's 11 point AP computation
    (default True)
 """
-# assumes detections are in detpath.format(classname)
-# assumes annotations are in annopath.format(imagename)
-# assumes imagesetfile is a text file with each line an image name
-# cachedir caches the annotations in a pickle file
-# first load gt
+    # assumes detections are in detpath.format(classname)
+    # assumes annotations are in annopath.format(imagename)
+    # assumes imagesetfile is a text file with each line an image name
+    # cachedir caches the annotations in a pickle file
+    # first load gt
     if not os.path.isdir(cachedir):
         os.mkdir(cachedir)
     cachefile = os.path.join(cachedir, 'annots.pkl')
@@ -269,7 +267,7 @@ cachedir: Directory for caching the annotations
             recs[imagename] = parse_rec(annopath % (imagename))
             if i % 100 == 0:
                 print('Reading annotation for {:d}/{:d}'.format(
-                   i + 1, len(imagenames)))
+                    i + 1, len(imagenames)))
         # save
         print('Saving cached annotations to {:s}'.format(cachefile))
         with open(cachefile, 'wb') as f:
@@ -368,7 +366,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     #    all_boxes[cls][image] = N x 5 array of detections in
     #    (x1, y1, x2, y2, score)
     all_boxes = [[[] for _ in range(num_images)]
-                 for _ in range(len(labelmap)+1)]
+                 for _ in range(len(labelmap) + 1)]
 
     # timers
     _t = {'im_detect': Timer(), 'misc': Timer()}
@@ -420,8 +418,8 @@ def evaluate_detections(box_list, output_dir, dataset):
 
 if __name__ == '__main__':
     # load net
-    num_classes = len(labelmap) + 1                      # +1 for background
-    net = build_ssd('test', 300, num_classes)            # initialize SSD
+    num_classes = len(labelmap) + 1  # +1 for background
+    net = build_ssd('test', 300, num_classes)  # initialize SSD
     net.load_state_dict(torch.load(args.trained_model))
     net.eval()
     print('Finished loading model!')

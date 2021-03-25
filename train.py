@@ -3,6 +3,7 @@
 from torch.optim import Optimizer
 
 from data import *
+from utils import str2bool
 from utils.augmentations import SSDAugmentation
 from layers.modules import MultiBoxLoss
 from ssd import build_ssd
@@ -21,15 +22,12 @@ import argparse
 import visdom
 
 
-def str2bool(v: str) -> bool:
-    return v.lower() in ("yes", "true", "t", "1")
-
-
 def init_parser():
     parser = argparse.ArgumentParser(
         description='Single Shot MultiBox Detector Training With Pytorch')
     train_set = parser.add_mutually_exclusive_group()
-    parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'], type=str, help='VOC or COCO')
+    parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO', 'barcode'], type=str,
+                        help='VOC or COCO or barcode')
     parser.add_argument('--dataset_root', default=VOC_ROOT, help='Dataset root directory path')
     parser.add_argument('--basenet', default='vgg16_reducedfc.pth', help='Pretrained base model')
     parser.add_argument('--batch_size', default=16, type=int, help='Batch size for training')
@@ -43,6 +41,7 @@ def init_parser():
     parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
     parser.add_argument('--visdom', default=False, type=str2bool, help='Use visdom for loss visualization')
     parser.add_argument('--save_folder', default='weights/', help='Directory for saving checkpoint models')
+    parser.add_argument("--img_list_file_path", default="./barcode/CorrectDetect.txt", type=str, help="a file path")
     args = parser.parse_args()
     return parser, args
 
@@ -80,6 +79,10 @@ def train():
             parser.error('Must specify dataset if specifying dataset_root')
         cfg = voc
         dataset = VOCDetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
+    elif args.dataset == 'barcode':
+        cfg = barcode_cfg_dict
+        dataset = BARCODEDetection(img_list_path=args.img_list_file_path,
+                                   transform=SSDAugmentation(cfg['min_dim'], MEANS))
     ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
     net = ssd_net
 
@@ -136,9 +139,8 @@ def train():
                                   pin_memory=True)
     # create batch iterator
     # begin epoch rewrite
-    print(f"dataset length {len(data_loader)}")
-    for epoch_num in range(0, cfg['max_iter'] // len(dataset)):
-        epoch_begin=time.time()
+    for epoch_num in range(0, cfg['max_epoch']):
+        epoch_begin = time.time()
         if args.visdom:
             update_vis_plot(epoch_num, loc_loss, conf_loss, epoch_plot, None, 'append', epoch_size)
             # reset epoch loss counters
@@ -149,12 +151,13 @@ def train():
                 step_index += 1
                 adjust_learning_rate(optimizer, args.gamma, step_index)
             images, targets = iteration
-            if args.cuda:
-                images = Variable(images.cuda())
-                targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
-            else:
-                images = Variable(images)
-                targets = [Variable(ann, volatile=True) for ann in targets]
+            with torch.no_grad():
+                if args.cuda:
+                    images = Variable(images.cuda())
+                    targets = [Variable(ann.cuda()) for ann in targets]
+                else:
+                    images = Variable(images)
+                    targets = [Variable(ann) for ann in targets]
             t0 = time.time()
             out = net(images)
             # backprop
@@ -165,67 +168,15 @@ def train():
             optimizer.step()
             loc_loss += loss_l.data.item()
             conf_loss += loss_c.data.item()
-            if iter_int % 50 == 0:
+            if iter_int % 10 == 0:
                 print(f'timer: {time.time() - t0} sec.')
                 print(f'iter  {repr(iter_int)} || Loss: {loss.data.item()} ||')
             if args.visdom:
                 update_vis_plot(iter_int, loss_l.data.item(), loss_c.data.item(), iter_plot, epoch_plot, 'append')
-        if epoch_num % 2 == 0:
+        if epoch_num % 3:
             print(f'Saving state, iter: {epoch_num}')
-            torch.save(ssd_net.state_dict(), f'weights/ssd300_COCO_{repr(epoch_num)}.pth')
-
-        torch.save(ssd_net.state_dict(), os.path.join(args.save_folder, args.dataset, '.pth'))
-
-
-# end epoch rewrite
-# batch_iterator = iter(data_loader)
-# for iteration in range(args.start_iter, cfg['max_iter']):
-#     if args.visdom and iteration != 0 and (iteration % epoch_size == 0):
-#         update_vis_plot(epoch, loc_loss, conf_loss, epoch_plot, None,
-#                         'append', epoch_size)
-#         # reset epoch loss counters
-#         loc_loss = 0
-#         conf_loss = 0
-#         epoch += 1
-#
-#     if iteration in cfg['lr_steps']:
-#         step_index += 1
-#         adjust_learning_rate(optimizer, args.gamma, step_index)
-#
-#     # load train data
-#     images, targets = next(batch_iterator)
-#
-#     if args.cuda:
-#         images = Variable(images.cuda())
-#         targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
-#     else:
-#         images = Variable(images)
-#         targets = [Variable(ann, volatile=True) for ann in targets]
-#     # forward
-#     t0 = time.time()
-#     out = net(images)
-#     # backprop
-#     optimizer.zero_grad()
-#     loss_l, loss_c = criterion(out, targets)
-#     loss = loss_l + loss_c
-#     loss.backward()
-#     optimizer.step()
-#     t1 = time.time()
-#     loc_loss += loss_l.data.item()
-#     conf_loss += loss_c.data.item()
-#
-#     if iteration % 10 == 0:
-#         print(f'timer: {t1 - t0} sec.')
-#         print(f'iter  {repr(iteration)} || Loss: {loss.data.item()} ||')
-#
-#     if args.visdom:
-#         update_vis_plot(iteration, loss_l.data.item(), loss_c.data.item(),
-#                         iter_plot, epoch_plot, 'append')
-#
-#     if iteration != 0 and iteration % 5000 == 0:
-#         print('Saving state, iter:', iteration)
-#         torch.save(ssd_net.state_dict(), f'weights/ssd300_COCO_{repr(iteration)}.pth')
-# torch.save(ssd_net.state_dict(), os.path.join(args.save_folder, args.dataset, '.pth'))
+            torch.save(ssd_net.state_dict(), f'weights/ssd300_{args.dataset}/{repr(epoch_num)}.pth')
+    torch.save(ssd_net.state_dict(), os.path.join(args.save_folder, f'{args.dataset}.pth'))
 
 
 def adjust_learning_rate(optimizer: Optimizer, gamma: float, step: int) -> None:

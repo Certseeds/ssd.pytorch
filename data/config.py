@@ -28,6 +28,7 @@ voc: Dict = {
     'variance': [0.1, 0.2],
     'clip': True,
     'name': 'VOC',
+    'max_epoch': 300,
 }
 
 coco: Dict = {
@@ -43,4 +44,12 @@ coco: Dict = {
     'variance': [0.1, 0.2],
     'clip': True,
     'name': 'COCO',
+    'max_epoch': 300,
 }
+
+barcode_cfg_dict: Dict = dict(num_classes=2, lr_steps=(280000, 350000, 400000), lr_epoch=(150, 220, 275),
+                              min_dim=300, steps=(8, 16, 32, 64, 100, 300), min_sizes=(30, 60, 111, 162, 213, 264),
+                              max_sizes=(60, 111, 162, 213, 264, 315), variance=(0.1, 0.2), clip=True,
+                              max_iter=120000, max_epoch=350, feature_maps=(38, 19, 10, 5, 3, 1),
+                              aspect_ratios=((2), (2, 3), (2, 3), (2, 3), (2), (2)),
+                              name='barcode')
