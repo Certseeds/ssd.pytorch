@@ -214,6 +214,12 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
             break
         idx = idx[:-1]  # remove kept element from view
         # load bboxes of next highest vals
+        idx = torch.autograd.Variable(idx, requires_grad=False)
+        x1 = torch.autograd.Variable(x1, requires_grad=False)
+        y1 = torch.autograd.Variable(y1, requires_grad=False)
+        x2 = torch.autograd.Variable(x2, requires_grad=False)
+        y2 = torch.autograd.Variable(y2, requires_grad=False)
+        idx, x1, y1, x2, y2 = idx.data, x1.data, y1.data, x2.data, y2.data
         torch.index_select(x1, 0, idx, out=xx1)
         torch.index_select(y1, 0, idx, out=yy1)
         torch.index_select(x2, 0, idx, out=xx2)
@@ -232,6 +238,12 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
         h = torch.clamp(h, min=0.0)
         inter = w * h
         # IoU = i / (area(a) + area(b) - i)
+        # add begin
+        area = torch.autograd.Variable(area, requires_grad=False)
+        area = area.data
+        idx = torch.autograd.Variable(idx, requires_grad=False)
+        idx = idx.data
+        # add end
         rem_areas = torch.index_select(area, 0, idx)  # load remaining areas)
         union = (rem_areas - inter) + area[i]
         IoU = inter / union  # store result in iou

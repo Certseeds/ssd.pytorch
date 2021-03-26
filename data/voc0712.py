@@ -11,16 +11,12 @@ from typing import Tuple
 
 from .config import HOME
 import os.path as osp
-import sys
 import torch
 import torch.utils.data as data
 import cv2
 import numpy as np
 
-if sys.version_info[0] == 2:
-    import xml.etree.cElementTree as ET
-else:
-    import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET
 
 VOC_CLASSES = (  # always index 0
     'aeroplane', 'bicycle', 'bird', 'boat',
@@ -42,8 +38,6 @@ class VOCAnnotationTransform(object):
             (default: alphabetic indexing of VOC's 20 classes)
         keep_difficult (bool, optional): keep difficult instances or not
             (default: False)
-        height (int): height
-        width (int): width
     """
 
     def __init__(self, class_to_ind=None, keep_difficult=False):
