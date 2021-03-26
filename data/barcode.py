@@ -13,34 +13,25 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-BARCODE_CLASS = ('barcode')
+BARCODE_CLASS = ('barcode',)  # dont delete the ,
 
 
 # note: if you used our download scripts, this should be right
 
 class BARCODEAnnotationTransform(object):
-    """Transforms a VOC annotation into a Tensor of bbox coords and label index
-    Initilized with a dictionary lookup of classnames to indexes
-
-    Arguments:
-        class_to_ind (dict, optional): dictionary lookup of classnames -> indexes
-            (default: alphabetic indexing of VOC's 20 classes)
-        keep_difficult (bool, optional): keep difficult instances or not
-            (default: False)
-        height (int): height
-        width (int): width
-    """
-
     def __init__(self):
         super(BARCODEAnnotationTransform).__init__()
 
     def __call__(self, filepath: str, shape: Tuple[int, int]):
         """
         Arguments:
-            target (annotation) : the target annotation to be made usable
-                will be an ET.Element
+            epath: string
+                a file's path that contain the yolo format anno
+            shaoe: Tuple[int,int]
+                x_len,y_len
         Returns:
             a list containing lists of bounding boxes  [bbox coords, class name]
+            [[xmin, ymin, xmax, ymax, label_ind], ... ]
         """
         res: List[Tuple[float, float, float, float, int]] = []
         with open(filepath, 'r') as file:
@@ -48,22 +39,18 @@ class BARCODEAnnotationTransform(object):
                 _, x, y, diffx, diffy = line.split(" ")
                 x, y, diffx, diffy = float(x), float(y), float(diffx), float(diffy)
                 res.append((x - diffx / 2, y - diffy / 2, x + diffx / 2, y + diffy / 2, 0))
-        return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
+        return res
 
 
 class BARCODEDetection(data.Dataset):
     """Barcode Detection Dataset Object
-
     input is image, target is annotation
 
     Arguments:
-        root (string): filepath to VOCdevkit folder.
-        image_set (string): imageset to use (eg. 'train', 'val', 'test')
+        img_list_path: str
+        filepath to a txt that contains pictures list
         transform (callable, optional): transformation to perform on the
             input image
-        target_transform (callable, optional): transformation to perform on the
-            target `annotation`
-            (eg: take in caption string, return tensor of word indices)
         dataset_name (string, optional): which dataset to load
             (default: 'VOC2007')
     """
@@ -109,17 +96,17 @@ class BARCODEDetection(data.Dataset):
             self.imgLabelMap[index] = img_labels
         # print(img_labels)
         if self.transform is not None:
-            target = np.array(img_labels)
-            img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
+            img_labels = np.array(img_labels)
+            img, boxes, labels = self.transform(img, img_labels[:, :4], img_labels[:, 4])
             # to rgb
             img = img[:, :, (2, 1, 0)]
             # img = img.transpose(2, 0, 1)
-            target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
-        return torch.from_numpy(img).permute(2, 0, 1), target, height, width
+            img_labels = np.hstack((boxes, np.expand_dims(labels, axis=1)))
+        return torch.from_numpy(img).permute(2, 0, 1), img_labels, height, width
         # return torch.from_numpy(img), target, height, width
 
     def pull_image(self, index):
-        '''Returns the original image object at index in PIL form
+        """Returns the original image object at index in PIL form
 
         Note: not using self.__getitem__(), as any transformations passed in
         could mess up this functionality.
@@ -127,8 +114,8 @@ class BARCODEDetection(data.Dataset):
         Argument:
             index (int): index of img to show
         Return:
-            PIL img
-        '''
+            opencv img
+        """
         if index in self.imgMap:
             img = self.imgMap[index]
         else:
@@ -138,7 +125,7 @@ class BARCODEDetection(data.Dataset):
         return img
 
     def pull_anno(self, index):
-        '''Returns the original annotation of image at index
+        """Returns the original annotation of image at index
 
         Note: not using self.__getitem__(), as any transformations passed in
         could mess up this functionality.
@@ -148,7 +135,7 @@ class BARCODEDetection(data.Dataset):
         Return:
             list:  [img_id, [(label, bbox coords),...]]
                 eg: ('001718', [('dog', (96, 13, 438, 332))])
-        '''
+        """
         img = self.pull_image(index)
         height, width, channels = img.shape
         if index in self.imgLabelMap:
@@ -160,7 +147,7 @@ class BARCODEDetection(data.Dataset):
         return img, img_labels
 
     def pull_tensor(self, index):
-        '''Returns the original image at an index in tensor form
+        """Returns the original image at an index in tensor form
 
         Note: not using self.__getitem__(), as any transformations passed in
         could mess up this functionality.
@@ -169,7 +156,7 @@ class BARCODEDetection(data.Dataset):
             index (int): index of img to show
         Return:
             tensorized version of img, squeezed
-        '''
+        """
         return torch.Tensor(self.pull_image(index)).unsqueeze_(0)
 
 

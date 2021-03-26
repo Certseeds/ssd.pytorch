@@ -3,7 +3,7 @@
 from torch.optim import Optimizer
 
 from data import *
-from utils import str2bool
+from utils import str2bool, init_torch_tensor
 from utils.augmentations import SSDAugmentation
 from layers.modules import MultiBoxLoss
 from ssd import build_ssd
@@ -40,7 +40,7 @@ def init_parser():
     parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
     parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
     parser.add_argument('--visdom', default=False, type=str2bool, help='Use visdom for loss visualization')
-    parser.add_argument('--save_folder', default='weights/', help='Directory for saving checkpoint models')
+    parser.add_argument('--save_folder', default='weights', help='Directory for saving checkpoint models')
     parser.add_argument("--img_list_file_path", default="./barcode/CorrectDetect.txt", type=str, help="a file path")
     args = parser.parse_args()
     return parser, args
@@ -49,19 +49,6 @@ def init_parser():
 parser, args = init_parser()
 viz = visdom.Visdom()
 
-
-def default_tensor_type():
-    if torch.cuda.is_available():
-        if args.cuda:
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
-        if not args.cuda:
-            print("WARNING: It looks like you have a CUDA device, but aren't " +
-                  "using CUDA.\nRun with --cuda for optimal training speed.")
-            torch.set_default_tensor_type('torch.FloatTensor')
-    else:
-        torch.set_default_tensor_type('torch.FloatTensor')
-    if not os.path.exists(args.save_folder):
-        os.mkdir(args.save_folder)
 
 
 def train():
@@ -94,7 +81,7 @@ def train():
         print(f'Resuming training, loading {args.resume}...')
         ssd_net.load_weights(args.resume)
     else:
-        vgg_weights = torch.load(args.save_folder + args.basenet)
+        vgg_weights = torch.load(os.path.join(args.save_folder, args.basenet))
         print('Loading base network...')
         ssd_net.vgg.load_state_dict(vgg_weights)
 
@@ -173,9 +160,9 @@ def train():
                 print(f'iter  {repr(iter_int)} || Loss: {loss.data.item()} ||')
             if args.visdom:
                 update_vis_plot(iter_int, loss_l.data.item(), loss_c.data.item(), iter_plot, epoch_plot, 'append')
-        if epoch_num % 3:
+        if epoch_num % 3 == 0:
             print(f'Saving state, iter: {epoch_num}')
-            torch.save(ssd_net.state_dict(), f'weights/ssd300_{args.dataset}/{repr(epoch_num)}.pth')
+            torch.save(ssd_net.state_dict(), f'{args.save_folder}/ssd300_{args.dataset}/{repr(epoch_num)}.pth')
     torch.save(ssd_net.state_dict(), os.path.join(args.save_folder, f'{args.dataset}.pth'))
 
 
@@ -231,5 +218,6 @@ def update_vis_plot(iteration, loc, conf, window1, window2, update_type, epoch_s
 
 
 if __name__ == '__main__':
-    default_tensor_type()
+    os.makedirs(f'{args.save_folder}/ssd300_{args.dataset}')
+    init_torch_tensor(args.cuda)
     train()
