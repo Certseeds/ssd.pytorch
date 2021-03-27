@@ -1,67 +1,68 @@
+#!/usr/bin/env python3
+# coding=utf-8
 """Adapted from:
     @longcw faster_rcnn_pytorch: https://github.com/longcw/faster_rcnn_pytorch
     @rbgirshick py-faster-rcnn https://github.com/rbgirshick/py-faster-rcnn
     Licensed under The MIT License [see LICENSE for details]
 """
-
+# ! This DO NOT BE USE IN THIS REPO
 from __future__ import print_function
+
+from typing import List, Dict
+
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
+from data import BARCODEDetection, BARCODEAnnotationTransform, MEANS
 from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
-from data import VOC_CLASSES as labelmap
+from data import BARCODE_CLASS as labelmap
+
 import torch.utils.data as data
 
 from ssd import build_ssd
 
 import sys
 import os
-import time
 import argparse
 import numpy as np
 import pickle
 import cv2
 
-from utils import str2bool
+from utils import str2bool, init_torch_tensor, get_output_dir, get_output_dirs
 
-if sys.version_info[0] == 2:
-    import xml.etree.cElementTree as ET
-else:
-    import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET
 
-parser = argparse.ArgumentParser(
-    description='Single Shot MultiBox Detector Evaluation')
-parser.add_argument('--trained_model',
-                    default='weights/ssd300_mAP_77.43_v2.pth', type=str,
-                    help='Trained state_dict file path to open')
-parser.add_argument('--save_folder', default='eval/', type=str,
-                    help='File path to save results')
-parser.add_argument('--confidence_threshold', default=0.01, type=float,
-                    help='Detection confidence threshold')
-parser.add_argument('--top_k', default=5, type=int,
-                    help='Further restrict the number of predictions to parse')
-parser.add_argument('--cuda', default=True, type=str2bool,
-                    help='Use cuda to train model')
-parser.add_argument('--voc_root', default=VOC_ROOT,
-                    help='Location of VOC root directory')
-parser.add_argument('--cleanup', default=True, type=str2bool,
-                    help='Cleanup and remove results files following eval')
+from utils.Timer import Timer
 
-args = parser.parse_args()
 
+def init_parser():
+    parser = argparse.ArgumentParser(
+        description='Single Shot MultiBox Detector Evaluation')
+    parser.add_argument('--trained_model',
+                        default='weights/ssd300_mAP_77.43_v2.pth', type=str,
+                        help='Trained state_dict file path to open')
+    parser.add_argument('--save_folder', default='eval/', type=str, help='File path to save results')
+    parser.add_argument('--confidence_threshold', default=0.01, type=float, help='Detection confidence threshold')
+    parser.add_argument('--top_k', default=5, type=int, help='Further restrict the number of predictions to parse')
+    parser.add_argument('--cuda', default=True, type=str2bool, help='Use cuda to train model')
+    parser.add_argument('--voc_root', default=VOC_ROOT, help='Location of VOC root directory')
+    parser.add_argument('--cleanup', default=True, type=str2bool,
+                        help='Cleanup and remove results files following eval')
+    parser.add_argument("--img_list_file_path", default="./data/barcode/CorrectDetect.txt", type=str,
+                        help="a file path")
+    parser.add_argument("--dataset", default="barcode", choices=['VOC', 'COCO', 'barcode'], type=str,
+                        help="You know the rules")
+
+    args = parser.parse_args()
+    return parser, args
+
+
+parser, args = init_parser()
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
 
-if torch.cuda.is_available():
-    if args.cuda:
-        torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    if not args.cuda:
-        print("WARNING: It looks like you have a CUDA device, but aren't using \
-              CUDA.  Run with --cuda for optimal eval speed.")
-        torch.set_default_tensor_type('torch.FloatTensor')
-else:
-    torch.set_default_tensor_type('torch.FloatTensor')
+init_torch_tensor(args.cuda)
 
 annopath = os.path.join(args.voc_root, 'VOC2007', 'Annotations', '%s.xml')
 imgpath = os.path.join(args.voc_root, 'VOC2007', 'JPEGImages', '%s.jpg')
@@ -69,34 +70,6 @@ imgsetpath = os.path.join(args.voc_root, 'VOC2007', 'ImageSets',
                           'Main', '{:s}.txt')
 YEAR = '2007'
 devkit_path = args.voc_root + 'VOC' + YEAR
-dataset_mean = (104, 117, 123)
-set_type = 'test'
-
-
-class Timer(object):
-    """A simple timer."""
-
-    def __init__(self):
-        self.total_time = 0.
-        self.calls = 0
-        self.start_time = 0.
-        self.diff = 0.
-        self.average_time = 0.
-
-    def tic(self):
-        # using time.time instead of time.clock because time time.clock
-        # does not normalize for multithreading
-        self.start_time = time.time()
-
-    def toc(self, average=True):
-        self.diff = time.time() - self.start_time
-        self.total_time += self.diff
-        self.calls += 1
-        self.average_time = self.total_time / self.calls
-        if average:
-            return self.average_time
-        else:
-            return self.diff
 
 
 def parse_rec(filename):
@@ -119,43 +92,21 @@ def parse_rec(filename):
     return objects
 
 
-def get_output_dir(name, phase):
-    """Return the directory where experimental artifacts are placed.
-    If the directory does not exist, it is created.
-    A canonical path is built using the name from an imdb and a network
-    (if not None).
-    """
-    filedir = os.path.join(name, phase)
-    if not os.path.exists(filedir):
-        os.makedirs(filedir)
-    return filedir
-
-
-def get_voc_results_file_template(image_set, cls):
-    # VOCdevkit/VOC2007/results/det_test_aeroplane.txt
-    filename = 'det_' + image_set + '_%s.txt' % (cls)
-    filedir = os.path.join(devkit_path, 'results')
-    if not os.path.exists(filedir):
-        os.makedirs(filedir)
-    path = os.path.join(filedir, filename)
-    return path
-
-
-def write_voc_results_file(all_boxes, dataset):
+def write_voc_results_file(all_boxes: List[List[np.ndarray]], dataset: BARCODEDetection):
     for cls_ind, cls in enumerate(labelmap):
-        print('Writing {:s} VOC results file'.format(cls))
-        filename = get_voc_results_file_template(set_type, cls)
-        with open(filename, 'wt') as f:
-            for im_ind, index in enumerate(dataset.ids):
-                dets = all_boxes[cls_ind + 1][im_ind]
-                if dets == []:
-                    continue
-                # the VOCdevkit expects 1-based indices
-                for k in range(dets.shape[0]):
-                    f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                            format(index[1], dets[k, -1],
-                                   dets[k, 0] + 1, dets[k, 1] + 1,
-                                   dets[k, 2] + 1, dets[k, 3] + 1))
+        print(f'Writing {cls} VOC results file')
+        filename = get_output_dirs("eval", "test")
+        file = open(f'{filename}.result', 'w')
+        for im_ind, index in enumerate(dataset.imgLists):
+            dets: np.ndarray = all_boxes[cls_ind + 1][im_ind]
+            if len(dets) == 0:
+                continue
+            # the VOCdevkit expects 1-based indices
+            for k in range(dets.shape[0]):
+                file.write(f'{index[1]:s} {dets[k, -1]:.3f} '
+                           f'{(dets[k, 0] + 1):.1f} {(dets[k, 1] + 1):.1f} '
+                           f'{(dets[k, 2] + 1):.1f} {(dets[k, 3] + 1):.1f}\n')
+        file.close()
 
 
 def do_python_eval(output_dir='output', use_07=True):
@@ -167,9 +118,9 @@ def do_python_eval(output_dir='output', use_07=True):
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     for i, cls in enumerate(labelmap):
-        filename = get_voc_results_file_template(set_type, cls)
+        filename = get_output_dirs("eval", "test", "barcode")
         rec, prec, ap = voc_eval(
-            filename, annopath, imgsetpath.format(set_type), cls, cachedir,
+            filename, annopath, imgsetpath.format('test'), cls, cachedir,
             ovthresh=0.5, use_07_metric=use_07_metric)
         aps += [ap]
         print('AP for {} = {:.4f}'.format(cls, ap))
@@ -223,62 +174,42 @@ def voc_ap(rec, prec, use_07_metric=True):
     return ap
 
 
-def voc_eval(detpath,
-             annopath,
-             imagesetfile,
-             classname,
-             cachedir,
-             ovthresh=0.5,
-             use_07_metric=True):
-    """rec, prec, ap = voc_eval(detpath,
-                           annopath,
-                           imagesetfile,
-                           classname,
-                           [ovthresh],
-                           [use_07_metric])
-Top level function that does the PASCAL VOC evaluation.
-detpath: Path to detections
-   detpath.format(classname) should produce the detection results file.
-annopath: Path to annotations
-   annopath.format(imagename) should be the xml annotations file.
-imagesetfile: Text file containing the list of images, one image per line.
-classname: Category name (duh)
-cachedir: Directory for caching the annotations
-[ovthresh]: Overlap threshold (default = 0.5)
-[use_07_metric]: Whether to use VOC07's 11 point AP computation
-   (default True)
-"""
+def voc_eval(dataset: BARCODEDetection,
+             detpath: str,
+             annopath: str,
+             imagesetfile: str,
+             classname: str,
+             ovthresh: float = 0.5,
+             use_07_metric: bool = True):
+    """
+    @detpath: str ,Path to detections
+        detpath.format(classname) should produce the detection results file.
+    @annopath: Path to annotations
+       annopath.format(imagename) should be the xml annotations file.
+    @imagesetfile: Text file containing the list of images, one image per line.
+    @classname: Category name (duh)
+    @cachedir: Directory for caching the annotations
+    @[ovthresh]: Overlap threshold (default = 0.5)
+    @[use_07_metric]: Whether to use VOC07's 11 point AP computation
+       (default True)
+    @Returns:
+       rec, prec, ap
+    """
     # assumes detections are in detpath.format(classname)
     # assumes annotations are in annopath.format(imagename)
     # assumes imagesetfile is a text file with each line an image name
     # cachedir caches the annotations in a pickle file
     # first load gt
-    if not os.path.isdir(cachedir):
-        os.mkdir(cachedir)
-    cachefile = os.path.join(cachedir, 'annots.pkl')
     # read list of images
     with open(imagesetfile, 'r') as f:
         lines = f.readlines()
     imagenames = [x.strip() for x in lines]
-    if not os.path.isfile(cachefile):
-        # load annots
-        recs = {}
-        for i, imagename in enumerate(imagenames):
-            recs[imagename] = parse_rec(annopath % (imagename))
-            if i % 100 == 0:
-                print('Reading annotation for {:d}/{:d}'.format(
-                    i + 1, len(imagenames)))
-        # save
-        print('Saving cached annotations to {:s}'.format(cachefile))
-        with open(cachefile, 'wb') as f:
-            pickle.dump(recs, f)
-    else:
-        # load
-        with open(cachefile, 'rb') as f:
-            recs = pickle.load(f)
+    recs = dict()
+    for i in dataset.imgLabelMap:
+        recs[dataset.imgLists[i]] = dataset.imgLabelMap[i]
 
     # extract gt objects for this class
-    class_recs = {}
+    class_recs: Dict[str, Dict] = {}
     npos = 0
     for imagename in imagenames:
         R = [obj for obj in recs[imagename] if obj['name'] == classname]
@@ -359,18 +290,21 @@ cachedir: Directory for caching the annotations
     return rec, prec, ap
 
 
-def test_net(save_folder, net, cuda, dataset, transform, top_k,
-             im_size=300, thresh=0.05):
+DETECTIONS = [BARCODEDetection]
+
+
+def test_net(save_folder: str, net, cuda: bool, dataset: DETECTIONS, transform, top_k: int,
+             im_size: int = 300, thresh: float = 0.05):
     num_images = len(dataset)
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
     #    (x1, y1, x2, y2, score)
-    all_boxes = [[[] for _ in range(num_images)]
-                 for _ in range(len(labelmap) + 1)]
+    all_boxes: List[List[np.ndarray]] = [[[] for _ in range(num_images)]
+                                         for _ in range(len(labelmap) + 1)]
 
     # timers
-    _t = {'im_detect': Timer(), 'misc': Timer()}
-    output_dir = get_output_dir('ssd300_120000', set_type)
+    _t = dict(im_detect=Timer(), misc=Timer())
+    output_dir = get_output_dirs('eval', f'ssd300_{args.dataset}', 'test')
     det_file = os.path.join(output_dir, 'detections.pkl')
 
     for i in range(num_images):
@@ -384,7 +318,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
         detect_time = _t['im_detect'].toc(average=False)
 
         # skip j = 0, because it's the background class
-        for j in range(1, detections.size(1)):
+        for j in range(1, detections.size(1), 1):
             dets = detections[0, j, :]
             mask = dets[:, 0].gt(0.).expand(5, dets.size(0)).t()
             dets = torch.masked_select(dets, mask).view(-1, 5)
@@ -396,22 +330,20 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
             boxes[:, 1] *= h
             boxes[:, 3] *= h
             scores = dets[:, 0].cpu().numpy()
-            cls_dets = np.hstack((boxes.cpu().numpy(),
-                                  scores[:, np.newaxis])).astype(np.float32,
-                                                                 copy=False)
+            cls_dets = np.hstack((boxes.cpu().numpy(), scores[:, np.newaxis])).astype(np.float32,
+                                                                                      copy=False)
             all_boxes[j][i] = cls_dets
 
-        print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
-                                                    num_images, detect_time))
+        print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1, num_images, detect_time))
 
-    with open(det_file, 'wb') as f:
-        pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
-
+    with open(det_file, 'wb') as file:
+        pickle.dump(all_boxes, file, pickle.HIGHEST_PROTOCOL)
+        # all_boxes serilies to file
     print('Evaluating detections')
     evaluate_detections(all_boxes, output_dir, dataset)
 
 
-def evaluate_detections(box_list, output_dir, dataset):
+def evaluate_detections(box_list: List[List[np.ndarray]], output_dir: str, dataset: BARCODEDetection):
     write_voc_results_file(box_list, dataset)
     do_python_eval(output_dir)
 
@@ -424,13 +356,12 @@ if __name__ == '__main__':
     net.eval()
     print('Finished loading model!')
     # load data
-    dataset = VOCDetection(args.voc_root, [('2007', set_type)],
-                           BaseTransform(300, dataset_mean),
-                           VOCAnnotationTransform())
+    dataset = BARCODEDetection(img_list_path=args.img_list_file_path,
+                               transform=BaseTransform(300, MEANS))
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
     # evaluation
     test_net(args.save_folder, net, args.cuda, dataset,
-             BaseTransform(net.size, dataset_mean), args.top_k, 300,
+             BaseTransform(net.size, MEANS), args.top_k, 300,
              thresh=args.confidence_threshold)

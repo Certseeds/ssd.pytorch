@@ -26,9 +26,11 @@ function l() {
 }
 function test_small() {
   python3 ./test.py --dataset barcode \
+    --img_list_file_path data/barcode/CorrectDetect.txt \
     --trained_model weights/ssd300_barcode/349.pth \
     --save_folder test \
-    --cuda true
+    --cuda true \
+    --test_or_eval false
 }
 function test_all() {
   python3 ./test.py --dataset barcode \
@@ -37,10 +39,14 @@ function test_all() {
     --save_folder test \
     --cuda true
 }
-function test_voc() {
-  python3 ./test.py \
-    --trained_model weights/ssd300_VOC/0.pth \
-    --save_folder test \
-    --cuda true
+function ap_small() {
+  python3 ./ap_test.py \
+    --img_list_file_path data/barcode/CorrectDetect.txt \
+    --pred_label_path test/barcode5/labels
+}
+function ap_all() {
+  python3 ./ap_test.py \
+    --img_list_file_path data/barcode/train.txt \
+    --pred_label_path test/barcode6/labels
 }
 "$1"
