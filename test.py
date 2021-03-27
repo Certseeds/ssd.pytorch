@@ -16,7 +16,8 @@ from data import BARCODE_CLASS as labelmap
 from data import BaseTransform, MEANS
 import torch.utils.data as data
 from ssd import build_ssd
-from utils import init_torch_tensor, increment_path, Path, coco_to_yolo, str2bool, draw_picture_with_label
+from utils import init_torch_tensor, increment_path, Path, coco_to_yolo, str2bool, draw_picture_with_label, \
+    save_picture_with_label, coco_to_percent
 from typing import Dict, List, Tuple
 
 
@@ -32,7 +33,11 @@ def init_parser():
                         help="a file path")
     parser.add_argument("--dataset", default="barcode", choices=['VOC', 'COCO', 'barcode'], type=str,
                         help="You know the rules")
+    parser.add_argument("--test_or_eval", default=True, type=str2bool,
+                        help="True: output for test, label format is yolo, "
+                             "False: Output for eval, label format is '0 x_min y_min x_max y_max conf' per line")
     args_r = parser.parse_args()
+    print(args_r.test_or_eval)
     args_r.test_save_path = increment_path(Path("test") / args_r.dataset, exist_ok=False)
     os.makedirs(args_r.test_save_path)
     os.makedirs(Path(args_r.test_save_path) / 'labels')
@@ -42,6 +47,7 @@ def init_parser():
 parser, args = init_parser()
 
 
+# DONE 计算AP
 def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetection, transform, thresh):
     # dump predictions and assoc. ground truth to text file for now
     num_images = len(testset)
@@ -73,13 +79,19 @@ def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetec
                 pt = (origin_rect * scale).cpu().numpy()
                 coords = (pt[0], pt[1], pt[2], pt[3])
                 # img = draw_picture_with_label(img, coords)
+                # file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f} {score:.6f}\n')
                 will_draw.append(coords)
-                coords = coco_to_yolo(coords, (img.shape[0], img.shape[1]))
+                if args.test_or_eval:
+                    coords = coco_to_percent(coords, (img.shape[1], img.shape[0]))
+                    file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f} {score:.6f}\n')
                 pred_num += 1
                 print(score)
-                file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f}\n')
+                if not args.test_or_eval:
+                    coords = coco_to_yolo(coords, (img.shape[1], img.shape[0]))
+                    file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f}\n')
                 j += 1
-        draw_picture_with_label(img, will_draw)
+        # draw_picture_with_label(img, will_draw)
+        save_picture_with_label(f'{args.test_save_path}/{file_stem}.jpg', img, will_draw)
         file.close()
 
 

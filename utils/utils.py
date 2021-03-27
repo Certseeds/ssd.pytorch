@@ -79,6 +79,23 @@ def coco_to_yolo(rect: Tuple[float, float, float, float], shape: Tuple[int, int]
     return will_return[0], will_return[1], will_return[2], will_return[3]
 
 
+def coco_to_percent(rect: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Tuple[
+    float, float, float, float]:
+    """
+    Args:
+        rect: (x_min,y_min,x_max,y_max)
+        shape: (x_net_len,h_net_len)
+    Returns:
+        (x_mid,y_mid,x_len,y_len)
+    """
+    # print(f'[x_min,y_min,x_max,y_max] is {rect[0]} {rect[1]} {rect[2]} {rect[3]}')
+    will_return = list(rect)
+    will_return[0], will_return[2] = will_return[0] / shape[0], will_return[2] / shape[0]
+    will_return[1], will_return[3] = will_return[1] / shape[1], will_return[3] / shape[1]
+    # print(f'[x_mid,y_mid,x_len,y_len] is {will_return[0]}, {will_return[1]}, {will_return[2]}, {will_return[3]}')
+    return will_return[0], will_return[1], will_return[2], will_return[3]
+
+
 def draw_picture_with_label(img, labels: List[Tuple[int, int, int, int]] or Tuple[int, int, int, int]):
     """
     Args:
@@ -100,4 +117,27 @@ def draw_picture_with_label(img, labels: List[Tuple[int, int, int, int]] or Tupl
         print(label)
     cv2.imshow('x', cv2.resize(img, (img.shape[0] // 5, img.shape[1] // 5)))
     cv2.waitKey(0)
+    return img
+
+
+def save_picture_with_label(file_name_with_dir: str,
+                            img, labels: List[Tuple[int, int, int, int]] or Tuple[int, int, int, int]):
+    """
+    Args:
+        img: come from cv2.read()
+        labels: List[Tuple[int,int,int,int]]
+         in each Tuple[], order is (x_min,y_min,x_max,y_max)
+         Ps: each number is percent,
+    Returns:
+        a drawed labels image
+    """
+    x_net, y_net, _ = img.shape
+    if type(labels) is not list:
+        labels = [labels]
+    for label in labels:
+        if len(label) < 4:
+            continue
+        cv2.rectangle(img, (int(label[0]), int(label[1])), (int(label[2]), int(label[3])), (0, 255, 0), 6)
+        # cv2.imshow('x', img)
+    cv2.imwrite(file_name_with_dir, cv2.resize(img, (img.shape[0] // 5, img.shape[1] // 5)))
     return img

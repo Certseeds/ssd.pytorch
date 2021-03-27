@@ -307,6 +307,7 @@
 ../barcode_detection_dataset/1d_barcode_extended/images/JPEGImages/IMAG0499.jpg
 ../barcode_detection_dataset/pictures/images/20210317_2/IMG_20210317_115713.jpg
 ../barcode_detection_dataset/1d_barcode_extended/images/JPEGImages/IMAG0455.jpg
+../barcode_detection_dataset/1d_barcode_extended/images/JPEGImages/IMAG0455.jpg
 ../barcode_detection_dataset/BarcodeDatasets/images/Dataset2/Foto(793).jpg
 ../barcode_detection_dataset/1d_barcode_extended_plain/images/Original/IMAG0441.png
 ../barcode_detection_dataset/BarcodeDatasets/images/Dataset2/Foto(515).jpg
