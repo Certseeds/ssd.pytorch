@@ -81,12 +81,13 @@ def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetec
                 # img = draw_picture_with_label(img, coords)
                 # file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f} {score:.6f}\n')
                 will_draw.append(coords)
-                if args.test_or_eval:
+                if not args.test_or_eval:
                     coords = coco_to_percent(coords, (img.shape[1], img.shape[0]))
                     file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f} {score:.6f}\n')
+                    # this is eval
                 pred_num += 1
                 print(score)
-                if not args.test_or_eval:
+                if args.test_or_eval:
                     coords = coco_to_yolo(coords, (img.shape[1], img.shape[0]))
                     file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f}\n')
                 j += 1

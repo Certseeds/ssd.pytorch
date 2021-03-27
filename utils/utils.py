@@ -65,7 +65,7 @@ def coco_to_yolo(rect: Tuple[float, float, float, float], shape: Tuple[int, int]
     """
     Args:
         rect: (x_min,y_min,x_max,y_max)
-        shape: (x_net_len,h_net_len)
+        shape: (x_net_len,y_net_len)
     Returns:
         (x_mid,y_mid,x_len,y_len)
     """
@@ -86,7 +86,8 @@ def coco_to_percent(rect: Tuple[float, float, float, float], shape: Tuple[int, i
         rect: (x_min,y_min,x_max,y_max)
         shape: (x_net_len,h_net_len)
     Returns:
-        (x_mid,y_mid,x_len,y_len)
+        (x_min,y_min,x_max,y_max)
+        PS: but all belong to [0,1]
     """
     # print(f'[x_min,y_min,x_max,y_max] is {rect[0]} {rect[1]} {rect[2]} {rect[3]}')
     will_return = list(rect)
