@@ -31,11 +31,14 @@ def main() -> None:
 
 
 def draw(pres: List[float], recas: List[float]) -> float:
-    print(recas, pres)
+    # print(recas, pres)
+    recas.insert(0, 0)
+    pres.insert(0, 1)
     plt.plot(recas, pres)
     plt.axis([0, 1.0, 0, 1.1])
     plt.xlabel('recas')
     plt.ylabel('ppres')
+    plt.savefig("ap.png")
     plt.show()
     x = trapz(pres, recas, dx=0.0001)
     print(x)
