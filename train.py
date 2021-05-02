@@ -28,7 +28,7 @@ def init_parser():
     train_set = parser.add_mutually_exclusive_group()
     parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO', 'barcode'], type=str,
                         help='VOC or COCO or barcode')
-    parser.add_argument('--dataset_root', default=VOC_ROOT, help='Dataset root directory path')
+    parser.add_argument('--dataset_root', default='', help='Dataset root directory path')
     parser.add_argument('--basenet', default='vgg16_reducedfc.pth', help='Pretrained base model')
     parser.add_argument('--batch_size', default=16, type=int, help='Batch size for training')
     parser.add_argument('--resume', default=None, type=str, help='Checkpoint state_dict file to resume training from')
@@ -47,26 +47,26 @@ def init_parser():
 
 
 parser, args = init_parser()
-viz = visdom.Visdom()
-
+viz = visdom.Visdom(env=u'barcode')
 
 
 def train():
     print(args)
-    if args.dataset == 'COCO':
-        if args.dataset_root == VOC_ROOT:
-            if not os.path.exists(COCO_ROOT):
-                parser.error('Must specify dataset_root if specifying dataset')
-            print("WARNING: Using default COCO dataset_root because --dataset_root was not specified.")
-            args.dataset_root = COCO_ROOT
-        cfg = coco
-        dataset = COCODetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
-    elif args.dataset == 'VOC':
-        if args.dataset_root == COCO_ROOT:
-            parser.error('Must specify dataset if specifying dataset_root')
-        cfg = voc
-        dataset = VOCDetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
-    elif args.dataset == 'barcode':
+    # if args.dataset == 'COCO':
+    #     if args.dataset_root == VOC_ROOT:
+    #         if not os.path.exists(COCO_ROOT):
+    #             parser.error('Must specify dataset_root if specifying dataset')
+    #         print("WARNING: Using default COCO dataset_root because --dataset_root was not specified.")
+    #         args.dataset_root = COCO_ROOT
+    #     cfg = coco
+    #     dataset = COCODetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
+    # elif args.dataset == 'VOC':
+    #     if args.dataset_root == COCO_ROOT:
+    #         parser.error('Must specify dataset if specifying dataset_root')
+    #     cfg = voc
+    #     dataset = VOCDetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
+    # el
+    if args.dataset == 'barcode':
         cfg = barcode_cfg_dict
         dataset = BARCODEDetection(img_list_path=args.img_list_file_path,
                                    transform=SSDAugmentation(cfg['min_dim'], MEANS))
@@ -133,10 +133,10 @@ def train():
             # reset epoch loss counters
             loc_loss = 0
             conf_loss = 0
+        if epoch_num in (280, 350, 400):
+            step_index += 1
+            adjust_learning_rate(optimizer, args.gamma, step_index)
         for iter_int, iteration in enumerate(iter(data_loader)):
-            if epoch_num in (280, 350, 400):
-                step_index += 1
-                adjust_learning_rate(optimizer, args.gamma, step_index)
             images, targets = iteration
             with torch.no_grad():
                 if args.cuda:
@@ -156,12 +156,12 @@ def train():
             loc_loss += loss_l.data.item()
             conf_loss += loss_c.data.item()
             if iter_int % 10 == 0:
-                print(f'timer: {time.time() - t0} sec.')
-                print(f'iter  {repr(iter_int)} || Loss: {loss.data.item()} ||')
+                print(f'timer: {time.time() - t0} sec.', flush=True)
+                print(f'iter  {repr(iter_int)} || Loss: {loss.data.item()} ||', flush=True)
             if args.visdom:
                 update_vis_plot(iter_int, loss_l.data.item(), loss_c.data.item(), iter_plot, epoch_plot, 'append')
         if epoch_num % 3 == 0:
-            print(f'Saving state, iter: {epoch_num}')
+            print(f'Saving state, iter: {epoch_num}', flush=True)
             torch.save(ssd_net.state_dict(), f'{args.save_folder}/ssd300_{args.dataset}/{repr(epoch_num)}.pth')
     torch.save(ssd_net.state_dict(), os.path.join(args.save_folder, f'{args.dataset}.pth'))
 
