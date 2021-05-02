@@ -10,6 +10,9 @@ from layers import *
 from data import voc, coco
 import os
 
+from layers.modules.expand_layer import expandLayer
+from layers.modules.gray_layer import grayLayer
+
 
 class SSD(nn.Module):
     """Single Shot Multibox Architecture
@@ -39,7 +42,8 @@ class SSD(nn.Module):
         with torch.no_grad():
             self.priors = Variable(self.priorbox.forward())
         self.size = size
-
+        self.gray = grayLayer()
+        self.expand = expandLayer()
         # SSD network
         self.vgg = nn.ModuleList(base)
         # Layer learns to scale the l2 normalized features from conv4_3
@@ -76,6 +80,8 @@ class SSD(nn.Module):
         loc = list()
         conf = list()
 
+        x = self.gray(x)
+        x = self.expand(x)
         # apply vgg up to conv4_3 relu
         for k in range(23):
             x = self.vgg[k](x)

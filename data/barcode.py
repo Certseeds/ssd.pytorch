@@ -97,7 +97,11 @@ class BARCODEDetection(data.Dataset):
         # print(img_labels)
         if self.transform is not None:
             img_labels = np.array(img_labels)
-            img, boxes, labels = self.transform(img, img_labels[:, :4], img_labels[:, 4])
+            try:
+                img, boxes, labels = self.transform(img, img_labels[:, :4], img_labels[:, 4])
+            except IndexError as ie:
+                print(img_path)
+                exit(-1)
             # to rgb
             img = img[:, :, (2, 1, 0)]
             # img = img.transpose(2, 0, 1)
