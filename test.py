@@ -106,6 +106,7 @@ def test_voc():
     # load data
     # default net.size == 300
     testset = BARCODEDetection(img_list_path=args.img_list_file_path, transform=BaseTransform(net.size, MEANS))
+    # TODO,remeber do it
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True

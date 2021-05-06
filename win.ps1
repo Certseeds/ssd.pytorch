@@ -11,7 +11,7 @@ function test_mmu()
 {
     python3 .\test.py --dataset barcode `
     --img_list_file_path data\barcode\valid.txt `
-    --trained_model weights\ssd300_barcode\348.pth `
+    --trained_model weights\ssd300_barcode\350.pth `
     --save_folder test `
     --cuda true `
     --test_or_eval false # if want to work with ap_*, make it `false`
@@ -34,7 +34,7 @@ function ap_MMU()
 {
     python3 .\ap_test.py `
     --img_list_file_path data\barcode\valid.txt `
-    --pred_label_path test\barcode14\labels
+    --pred_label_path test\barcode19\labels
 }
 function small()
 {
@@ -46,16 +46,29 @@ function MMU()
     test_mmu
     ap_MMU
 }
-function train_barcode()
+function train_small()
 {
     python3 ./train.py --dataset barcode `
     --batch_size 16 `
+    --num_workers 8 `
+    --cuda true `
+    --lr 1e-5 `
+    --img_list_file_path "./data/barcode/CorrectDetect.txt" `
+}
+function train_barcode()
+{
+    python3 ./train.py --dataset barcode `
+    --batch_size 24 `
     --num_workers 4 `
     --cuda true `
     --lr 1e-5 `
-    --img_list_file_path "./data/barcode/train_with_wwu.txt"
+    --img_list_file_path "./data/barcode/train.txt" `
+    # --img_list_file_path "./data/barcode/train_with_extend.txt"
+    # --img_list_file_path "./data/barcode/train_with_extend.txt"
+    # --img_list_file_path "./data/barcode/train_with_wwu.txt"
 }
 Write-Output("114514")
+# train_barcode
 MMU
 # train_barcode
 # ./win.ps1 | Out-File -FilePath ./log.log
