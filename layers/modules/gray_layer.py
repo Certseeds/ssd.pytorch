@@ -13,6 +13,7 @@ class grayLayer(nn.Module):
         self.red = torch.cuda.FloatTensor([0.299]).reshape(1, 1, 1, 1)
         self.green = torch.cuda.FloatTensor([0.587]).reshape(1, 1, 1, 1)
         self.blue = torch.cuda.FloatTensor([0.114]).reshape(1, 1, 1, 1)
+        # imread B,G,R already become RGB
         self.weights = nn.Parameter(data=torch.cat((self.red, self.green, self.blue), 1), requires_grad=False)
         # self.weights = nn.Parameter(data=self.red, requires_grad=False)
 
@@ -27,7 +28,6 @@ class grayLayer(nn.Module):
 
         return F.conv2d(x, self.weights)
         # return x
-
 
 
 def check():
