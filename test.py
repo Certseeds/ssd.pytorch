@@ -52,8 +52,8 @@ parser, args = init_parser()
 # DONE 计算AP
 def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetection, transform, thresh):
     # dump predictions and assoc. ground truth to text file for now
+    sumtime = 0
     num_images = len(testset)
-    begintime = time.time()
     for i in range(num_images):
         prev_time = time.time()
         print(f'Testing image {(i + 1):d}/{num_images:d}....')
@@ -64,7 +64,9 @@ def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetec
         file = open(f'{args.test_save_path}/labels/{file_stem}.txt', mode='w')
 
         x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1).unsqueeze(0).cuda(non_blocking=True)
+        beforeTime = time.time()
         y = net(x)  # forward pass
+        sumtime = sumtime + (time.time() - beforeTime)
         print(f"\t+ Batch {i}, net Time:{time.time()- prev_time}",flush=True)
         detections = y.data
         # scale each detection back up to the image
@@ -98,10 +100,9 @@ def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetec
         print("\t+ Batch %d, Inference Time: %s" % (i, inference_time),flush=True)
         # save_picture_with_label(f'{args.test_save_path}/{file_stem}.jpg', img, will_draw)
         #file.close()
-    net_time = time.time() - begintime
-    print(f"sum time {net_time}\n")
-    print(f"avg time {net_time / num_images}\n")
-    print(f"avg frame { num_images /net_time}\n")
+    print(f"sum time { sumtime}\n")
+    print(f"avg time { sumtime / num_images}\n")
+    print(f"avg frame { num_images / sumtime}\n")
 
 def test_voc():
     if torch.cuda.is_available():
