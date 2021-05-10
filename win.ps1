@@ -7,15 +7,7 @@ function test_small()
     --cuda true `
     --test_or_eval false # if want to work with ap_*, make it `false`
 }
-function test_mmu()
-{
-    python3 .\test.py --dataset barcode `
-    --img_list_file_path data\barcode\valid.txt `
-    --trained_model weights\ssd300_barcode\350.pth `
-    --save_folder test `
-    --cuda true `
-    --test_or_eval false # if want to work with ap_*, make it `false`
-}
+
 function test_all()
 {
     python3 .\test.py --dataset barcode `
@@ -30,11 +22,35 @@ function ap_small()
     --img_list_file_path data\barcode\CorrectDetect.txt `
     --pred_label_path test\barcode11\labels
 }
+function test_mmu()
+{
+    python3 .\test.py --dataset barcode `
+    --img_list_file_path data\barcode\valid.txt `
+    --trained_model weights\6_beforemid\350.pth `
+    --save_folder test `
+    --cuda true `
+    --test_or_eval false # if want to work with ap_*, make it `false`
+}
 function ap_MMU()
 {
     python3 .\ap_test.py `
     --img_list_file_path data\barcode\valid.txt `
-    --pred_label_path test\barcode19\labels
+    --pred_label_path test\barcode24\labels
+}
+function test_allvalid()
+{
+    python3 .\test.py --dataset barcode `
+    --img_list_file_path data\barcode\valid_all.txt `
+    --trained_model weights\7_before_mid_with_data_increase\350.pth `
+    --save_folder test `
+    --cuda true `
+    --test_or_eval false # if want to work with ap_*, make it `false`
+}
+function ap_allvalid()
+{
+    python3 .\ap_test.py `
+    --img_list_file_path data\barcode\valid_all.txt `
+    --pred_label_path test\barcode24\labels
 }
 function small()
 {
@@ -45,6 +61,11 @@ function MMU()
 {
     test_mmu
     ap_MMU
+}
+function allvalid()
+{
+    test_allvalid
+    ap_allvalid
 }
 function train_small()
 {
@@ -69,6 +90,9 @@ function train_barcode()
 }
 Write-Output("114514")
 # train_barcode
-MMU
+#allvalid
+# ap_allvalid
+#MMU
+test_mmu
 # train_barcode
 # ./win.ps1 | Out-File -FilePath ./log.log

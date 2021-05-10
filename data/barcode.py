@@ -4,10 +4,12 @@
 Updated by: Ellis Brown, Max deGroot
 
 """
+import time
 from typing import Tuple, List, Any, Union
 
 from utils import SSDAugmentation
 import torch
+import torchvision
 import torch.utils.data as data
 import cv2
 import numpy as np
@@ -74,7 +76,12 @@ class BARCODEDetection(data.Dataset):
         self.imgLabelMap = {}
         self.origin_data_length: int = len(self.imgLists)
         self.aimNum: int = int(1401)
+        self.prepare()
         # self.increase()
+    def prepare(self) -> None:
+        for index in range(0, self.origin_data_length, 1):
+            self.pull_anno(index)
+            print(f"prepareing {index}", flush=True)
 
     def __len__(self) -> int:
         # return self.aimNum - 1
@@ -134,9 +141,6 @@ class BARCODEDetection(data.Dataset):
         return img_return, labels_return
 
     def increase(self) -> None:
-        for index in range(0, self.origin_data_length, 1):
-            self.pull_anno(index)
-            print(f"prepareing {index}", flush=True)
         for index in range(self.origin_data_length, self.aimNum, 1):
             randomlist: List[int] = [randint(0, self.origin_data_length - 1) for _ in range(0, 4, 1)]
             img1, label1 = self.pull_anno(randomlist[0])
@@ -165,6 +169,7 @@ class BARCODEDetection(data.Dataset):
                 print(f"index Error {index}")
                 exit(-1)
             # img = img.transpose(2, 0, 1)
+        #return torchvision.transforms.functional.to_tensor(img),img_labels, height, width
         return torch.from_numpy(img).permute(2, 0, 1), img_labels, height, width
         # RGB to BRG
 
@@ -185,8 +190,8 @@ class BARCODEDetection(data.Dataset):
             img_path = self.imgLists[index]
             img = cv2.imread(img_path)
             img = img[:, :, (2, 1, 0)]  # BGR to RGB
-            img = cv2.resize(img, (300, 300))
-            self.imgMap[index] = img
+            #img = cv2.resize(img, (300, 300))
+            #self.imgMap[index] = img
         return img
 
     def pull_anno(self, index) -> Tuple[np.ndarray, List[Tuple[float, float, float, float, int]]]:
@@ -208,7 +213,7 @@ class BARCODEDetection(data.Dataset):
         else:
             label_path = self.labelLists[index]
             img_labels = self.target_transform(label_path, (width, height))
-            self.imgLabelMap[index] = img_labels
+            #self.imgLabelMap[index] = img_labels
         return img, img_labels
 
     def pull_tensor(self, index):

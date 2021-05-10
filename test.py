@@ -3,6 +3,8 @@
 from __future__ import print_function
 import sys
 import os
+import time
+import datetime
 import argparse
 from typing import List
 
@@ -51,19 +53,19 @@ parser, args = init_parser()
 def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetection, transform, thresh):
     # dump predictions and assoc. ground truth to text file for now
     num_images = len(testset)
+    begintime = time.time()
     for i in range(num_images):
+        prev_time = time.time()
         print(f'Testing image {(i + 1):d}/{num_images:d}....')
         img = testset.pull_image(i)
         # img_id, annotation = testset.pull_anno(i)
         print(testset.imgLists[i])
         file_stem = str(Path(testset.imgLists[i]).stem)
         file = open(f'{args.test_save_path}/labels/{file_stem}.txt', mode='w')
-        x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1)
-        x = Variable(x.unsqueeze(0))
 
-        if cuda:
-            x = x.cuda()
+        x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1).unsqueeze(0).cuda(non_blocking=True)
         y = net(x)  # forward pass
+        print(f"\t+ Batch {i}, net Time:{time.time()- prev_time}",flush=True)
         detections = y.data
         # scale each detection back up to the image
         scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
@@ -92,15 +94,26 @@ def test_net(save_folder: str, net: nn.Module, cuda: bool, testset: BARCODEDetec
                     file.write(f'0 {coords[0]:.6f} {coords[1]:.6f} {coords[2]:.6f} {coords[3]:.6f}\n')
                 j += 1
         # draw_picture_with_label(img, will_draw)
-        save_picture_with_label(f'{args.test_save_path}/{file_stem}.jpg', img, will_draw)
-        file.close()
-
+        inference_time = datetime.timedelta(seconds=time.time()- prev_time)
+        print("\t+ Batch %d, Inference Time: %s" % (i, inference_time),flush=True)
+        # save_picture_with_label(f'{args.test_save_path}/{file_stem}.jpg', img, will_draw)
+        #file.close()
+    net_time = time.time() - begintime
+    print(f"sum time {net_time}\n")
+    print(f"avg time {net_time / num_images}\n")
+    print(f"avg frame { num_images /net_time}\n")
 
 def test_voc():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        torch.backends.cudnn.benchmark = True
+    else:
+        device = torch.device("cpu")
     # load net
     num_classes = len(BARCODE_CLASS) + 1  # +1 background
     net = build_ssd('test', 300, num_classes)  # initialize SSD
     net.load_state_dict(torch.load(args.trained_model))
+    net = net.to(device)
     net.eval()
     print('Finished loading model!')
     # load data
