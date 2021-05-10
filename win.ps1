@@ -35,13 +35,13 @@ function ap_MMU()
 {
     python3 .\ap_test.py `
     --img_list_file_path data\barcode\valid.txt `
-    --pred_label_path test\barcode24\labels
+    --pred_label_path test\barcode26\labels
 }
 function test_allvalid()
 {
     python3 .\test.py --dataset barcode `
     --img_list_file_path data\barcode\valid_all.txt `
-    --trained_model weights\7_before_mid_with_data_increase\350.pth `
+    --trained_model weights\8beforemid_with_gray_layer\350.pth `
     --save_folder test `
     --cuda true `
     --test_or_eval false # if want to work with ap_*, make it `false`
@@ -50,7 +50,7 @@ function ap_allvalid()
 {
     python3 .\ap_test.py `
     --img_list_file_path data\barcode\valid_all.txt `
-    --pred_label_path test\barcode24\labels
+    --pred_label_path test\barcode27\labels
 }
 function small()
 {
@@ -90,9 +90,10 @@ function train_barcode()
 }
 Write-Output("114514")
 # train_barcode
-#allvalid
+# allvalid
 # ap_allvalid
+test_allvalid
 #MMU
-test_mmu
+#test_mmu
 # train_barcode
 # ./win.ps1 | Out-File -FilePath ./log.log
