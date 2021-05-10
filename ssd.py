@@ -55,7 +55,7 @@ class SSD(nn.Module):
 
         if phase == 'test':
             self.softmax = nn.Softmax(dim=-1)
-            self.detect = Detect(num_classes, 0, 200, 0.01, 0.45)
+            self.detect = Detect(num_classes, 0, 200, 0.5, 0.45)
 
     def forward(self, x):
         """Applies network layers and ops on input image(s) x.
@@ -80,8 +80,8 @@ class SSD(nn.Module):
         loc = list()
         conf = list()
 
-        x = self.gray(x)
-        x = self.expand(x)
+        # x = self.gray(x)
+        # x = self.expand(x)
         # apply vgg up to conv4_3 relu
         for k in range(23):
             x = self.vgg[k](x)

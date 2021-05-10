@@ -140,8 +140,8 @@ def train():
             images, targets = iteration
             with torch.no_grad():
                 if args.cuda:
-                    images = Variable(images.cuda())
-                    targets = [Variable(ann.cuda()) for ann in targets]
+                    images = Variable(images.cuda(non_blocking=True))
+                    targets = [Variable(ann.cuda(non_blocking=True)) for ann in targets]
                 else:
                     images = Variable(images)
                     targets = [Variable(ann) for ann in targets]
